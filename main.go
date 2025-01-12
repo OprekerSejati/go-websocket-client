@@ -11,111 +11,121 @@ import (
 )  
   
 func main() {  
-	// Server WebSocket URL  
-	serverURL := "ws://localhost:8080/ws"  
+	// Server WebSocket URL
+	serverURL := os.Getenv("SERVER_URL")  
+       if serverURL == "" {  
+           log.Fatal("SERVER_URL environment variable is not set")  
+       }   
   
 	// Connect to the WebSocket server  
-	conn, _, err := websocket.DefaultDialer.Dial(serverURL, nil)  
-	if err != nil {  
-		log.Fatalf("Failed to connect to server: %v", err)  
-	}  
-	defer conn.Close()  
+    conn, _, err := websocket.DefaultDialer.Dial(serverURL, nil)  
+    if err != nil {  
+        log.Fatalf("Failed to connect to server: %v", err)  
+    }  
+    defer conn.Close()  
   
-	done := make(chan os.Signal, 1)  
-	signal.Notify(done, os.Interrupt)  
-	var room string  
+    done := make(chan os.Signal, 1)  
+    signal.Notify(done, os.Interrupt)  
+    var room string  
   
-	// Menu (login/register)  
-	reader := bufio.NewReader(os.Stdin)  
-	log.Print("Do you want to login or register? (login/register): ")  
-	action, _ := reader.ReadString('\n')  
-	action = action[:len(action)-1]
+    // Menu (login/register)  
+    reader := bufio.NewReader(os.Stdin)  
+    log.Print("Do you want to login or register? (login/register): ")  
+    action, _ := reader.ReadString('\n')  
   
-	log.Print("Enter your username: ")  
-	username, _ := reader.ReadString('\n')  
-	username = username[:len(username)-1] 
+    // Periksa apakah action kosong  
+    if len(action) > 0 {  
+        action = action[:len(action)-1] // Menghapus newline  
+    } else {  
+        log.Println("No action provided. Exiting.")  
+        return  
+    }  
   
-	log.Print("Enter your password: ")  
-	password, _ := reader.ReadString('\n')  
-	password = password[:len(password)-1]
+    log.Print("Enter your username: ")  
+    username, _ := reader.ReadString('\n')  
+    username = strings.TrimSpace(username) // Menghapus spasi di awal dan akhir  
   
-	// Send login or register request to the server  
-	err = conn.WriteJSON(map[string]string{  
-		"action":   action,  
-		"username": username,  
-		"password": password,  
-	})  
-	if err != nil {  
-		log.Fatalf("Failed to send request: %v", err)  
-	}  
+    log.Print("Enter your password: ")  
+    password, _ := reader.ReadString('\n')  
+    password = strings.TrimSpace(password) // Menghapus spasi di awal dan akhir  
   
-	// Handle server response  
-	var response map[string]string  
-	err = conn.ReadJSON(&response)  
-	if err != nil {  
-		log.Println("Error reading response:", err)  
-		return  
-	}  
-	if msg, ok := response["error"]; ok {  
-		log.Println("Error:", msg)  
-		return  
-	}  
-	log.Println(response["message"])  
+    // Send login or register request to the server  
+    err = conn.WriteJSON(map[string]string{  
+        "action":   action,  
+        "username": username,  
+        "password": password,  
+    })  
+    if err != nil {  
+        log.Fatalf("Failed to send request: %v", err)  
+    }  
   
-	if response["message"] == "Registration successful" {  
-		log.Println("Please Re-Open the program and login")  
-		os.Exit(0)  
-	}  
+    // Handle server response  
+    var response map[string]string  
+    err = conn.ReadJSON(&response)  
+    if err != nil {  
+        log.Println("Error reading response:", err)  
+        return  
+    }  
+    if msg, ok := response["error"]; ok {  
+        log.Println("Error:", msg)  
+        return  
+    }  
+    log.Println(response["message"])  
   
-	// choose of action (join/dm)
-	if action == "login" {  
-		for {  
-			log.Print("Do you want to join a room or send a DM? (join/dm): ")  
-			choice, _ := reader.ReadString('\n')  
-			choice = choice[:len(choice)-1] 
+    if response["message"] == "Registration successful" {  
+        log.Println("Please Re-Open the program and login")  
+        os.Exit(0)  
+    }  
   
-			if choice == "join" {  
-				log.Print("Enter room name: ")  
-				room, _ := reader.ReadString('\n')  
-				room = room[:len(room)-1] 
+    // choose of action (join/dm)  
+    if action == "login" {  
+        for {  
+            log.Print("Do you want to join a room or send a DM? (join/dm): ")  
+            choice, _ := reader.ReadString('\n')  
+            choice = strings.TrimSpace(choice) // Menghapus spasi di awal dan akhir  
   
-				// Send join room request  
-				err = conn.WriteJSON(map[string]string{  
-					"action":   "join",  
-					"room":     room,  
-					"username": username,  
-				})  
-				if err != nil {  
-					log.Println("Error joining room:", err)  
-					continue  
-				}  
-				log.Printf("Joined room: %s", room)  
-				break
-			} else if choice == "dm" {  
-				log.Print("Enter username to DM: ")  
-				dmUser, _ := reader.ReadString('\n')  
-				dmUser = dmUser[:len(dmUser)-1]
+            if choice == "join" {  
+                log.Print("Enter room name: ")  
+                room, _ := reader.ReadString('\n')  
+                room = strings.TrimSpace(room) // Menghapus spasi di awal dan akhir  
   
-				log.Print("Enter your message: ")  
-				message, _ := reader.ReadString('\n')  
-				message = message[:len(message)-1]
+                // Send join room request  
+                err = conn.WriteJSON(map[string]string{  
+                    "action":   "join",  
+                    "room":     room,  
+                    "username": username,  
+                })  
+                if err != nil {  
+                    log.Println("Error joining room:", err)  
+                    continue  
+                }  
+                log.Printf("Joined room: %s", room)  
+                break  
+            } else if choice == "dm" {  
+                log.Print("Enter username to DM: ")  
+                dmUser, _ := reader.ReadString('\n')  
+                dmUser = strings.TrimSpace(dmUser) // Menghapus spasi di awal dan akhir  
   
-				// Send DM request  
-				err = conn.WriteJSON(map[string]string{  
-					"action":  "dm",  
-					"to":      dmUser,  
-					"message": message,  
-				})  
-				if err != nil {  
-					log.Println("Error sending DM:", err)  
-					continue  
-				}  
-				log.Printf("DM sent to %s: %s", dmUser, message)  
-			} else {  
-				log.Println("Invalid choice. Please enter 'join' or 'dm'.")  
-			}  
-		}  
-	}  
+                log.Print("Enter your message: ")  
+                message, _ := reader.ReadString('\n')  
+                message = strings.TrimSpace(message) // Menghapus spasi di awal dan akhir  
+  
+                // Send DM request  
+                err = conn.WriteJSON(map[string]string{  
+                    "action":  "dm",  
+                    "to":      dmUser,  
+                    "message": message,  
+                })  
+                if err != nil {  
+                    log.Println("Error sending DM:", err)  
+                    continue  
+                }  
+                log.Printf("DM sent to %s: %s", dmUser, message)  
+            } else {  
+                log.Println("Invalid choice. Please enter 'join' or 'dm'.")  
+            }  
+        }  
+    }   
   
 	go func() {  
 		for {  
