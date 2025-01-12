@@ -2,6 +2,7 @@ go-websocket-Client Go Application for Web Socket Chat Client
 
 Run :
 $docker-compose run --rm client
+
 You're good to go, your web socket client is running
 
 How to use
